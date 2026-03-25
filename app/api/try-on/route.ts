@@ -1,5 +1,4 @@
-import { generateText } from 'ai'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
+import { GoogleGenAI } from '@google/genai'
 
 export async function POST(req: Request) {
   try {
@@ -18,54 +17,60 @@ export async function POST(req: Request) {
     const outfitBuffer = await outfitImage.arrayBuffer()
     const personBase64 = Buffer.from(personBuffer).toString('base64')
     const outfitBase64 = Buffer.from(outfitBuffer).toString('base64')
-    const personMediaType = (personImage.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp'
-    const outfitMediaType = (outfitImage.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp'
+    const personMediaType = personImage.type || 'image/jpeg'
+    const outfitMediaType = outfitImage.type || 'image/jpeg'
 
-    const google = createGoogleGenerativeAI({
-      apiKey: process.env.AI_GATEWAY_TOKEN!,
-    })
+    const ai = new GoogleGenAI({ apiKey: process.env.AI_GATEWAY_TOKEN! })
 
-    const result = await generateText({
-      model: google('gemini-2.0-flash-preview-image-generation', {
-        responseModalities: ['image', 'text'],
-      } as never),
-      messages: [
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash-image',
+      contents: [
         {
           role: 'user',
-          content: [
+          parts: [
             {
-              type: 'text',
-              text: `Treat Photo A as the person to keep unchanged (face, body, pose, hair, skin tone, background). Treat Photo B as the outfit to apply. Replace only the clothing in Photo A with the outfit from Photo B. Match fit, drape, lighting, and shadows so it looks natural. Output one high-resolution image.`,
+              text: `Treat Photo A as the person to keep unchanged (face, body, pose, hair, skin tone, background). Treat Photo B as the outfit to apply. Replace only the clothing in Photo A with the outfit from Photo B. Match fit, drape, lighting, and shadows so it looks natural. Output one high-resolution image.`
             },
             {
-              type: 'image',
-              image: new Uint8Array(personBuffer),
-              mimeType: personMediaType,
+              inlineData: {
+                mimeType: personMediaType,
+                data: personBase64,
+              }
             },
             {
-              type: 'image',
-              image: new Uint8Array(outfitBuffer),
-              mimeType: outfitMediaType,
-            },
-          ],
-        },
+              inlineData: {
+                mimeType: outfitMediaType,
+                data: outfitBase64,
+              }
+            }
+          ]
+        }
       ],
+      config: {
+        responseModalities: ['IMAGE', 'TEXT'],
+      }
     })
 
-    const images = []
-    if (result.files) {
-      for (const file of result.files) {
-        if (file.mediaType?.startsWith('image/')) {
-          images.push({ base64: file.base64, mediaType: file.mediaType })
-        }
+    // Extract image from response
+    const parts = response.candidates?.[0]?.content?.parts || []
+    let imageData = null
+    let imageMediaType = 'image/png'
+
+    for (const part of parts) {
+      if (part.inlineData?.data) {
+        imageData = part.inlineData.data
+        imageMediaType = part.inlineData.mimeType || 'image/png'
+        break
       }
     }
 
-    if (images.length === 0) {
+    if (!imageData) {
       return Response.json({ error: 'No image generated' }, { status: 500 })
     }
 
-    return Response.json({ image: images[0], text: result.text })
+    return Response.json({
+      image: { base64: imageData, mediaType: imageMediaType }
+    })
 
   } catch (error) {
     console.error('Try-on error:', error)
