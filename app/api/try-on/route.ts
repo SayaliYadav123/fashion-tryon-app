@@ -18,12 +18,11 @@ export async function POST(req: Request) {
     const outfitBuffer = await outfitImage.arrayBuffer()
     const personBase64 = Buffer.from(personBuffer).toString('base64')
     const outfitBase64 = Buffer.from(outfitBuffer).toString('base64')
-    const personMediaType = personImage.type || 'image/jpeg'
-    const outfitMediaType = outfitImage.type || 'image/jpeg'
+    const personMediaType = (personImage.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp'
+    const outfitMediaType = (outfitImage.type || 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/webp'
 
     const google = createGoogleGenerativeAI({
       apiKey: process.env.AI_GATEWAY_TOKEN!,
-      baseURL: `https://gateway.ai.vercel.sh/v1/${process.env.VERCEL_TEAM_ID}/${process.env.VERCEL_PROJECT_ID}/google`,
     })
 
     const result = await generateText({
@@ -40,11 +39,13 @@ export async function POST(req: Request) {
             },
             {
               type: 'image',
-              image: `data:${personMediaType};base64,${personBase64}`,
+              image: new Uint8Array(personBuffer),
+              mimeType: personMediaType,
             },
             {
               type: 'image',
-              image: `data:${outfitMediaType};base64,${outfitBase64}`,
+              image: new Uint8Array(outfitBuffer),
+              mimeType: outfitMediaType,
             },
           ],
         },
