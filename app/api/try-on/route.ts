@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     const ai = new GoogleGenAI({ apiKey: process.env.AI_GATEWAY_TOKEN! })
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash-image',
+      model: 'gemini-2.5-flash-image',
       contents: [
         {
           role: 'user',
