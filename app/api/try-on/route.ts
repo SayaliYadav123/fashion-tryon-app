@@ -26,7 +26,8 @@ export async function POST(req: Request) {
     })
 
     const result = await generateText({
-      model: google('gemini-2.0-flash-exp', {
+      model: google('gemini-2.5-flash',
+         {
         responseModalities: ['image', 'text'],
       } as never),
       messages: [
